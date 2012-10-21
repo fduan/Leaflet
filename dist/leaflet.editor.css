@@ -1,0 +1,55 @@
+.leaflet-control-editor {
+	-moz-border-radius: 7px;
+	-webkit-border-radius: 7px;
+	border-radius: 7px;
+	position: relative;
+	}
+.leaflet-control-editor {
+	padding: 5px;
+	background: rgba(0, 0, 0, 0.25);
+	}
+.leaflet-control-editor a {
+	background-color: rgba(255, 255, 255, 0.75);
+	}
+.leaflet-control-editor a.active {
+	background-color: #acaed2;
+}
+.leaflet-control-editor a, .leaflet-control-layers a {
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	display: block;
+	}
+.leaflet-control-editor a {
+	-moz-border-radius: 4px;
+	-webkit-border-radius: 4px;
+	border-radius: 4px;
+	width: 19px;
+	height: 19px;
+	}
+.leaflet-control-editor a:hover {
+	background-color: #fff;
+	}
+.leaflet-touch .leaflet-control-editor a {
+	width: 27px;
+	height: 27px;
+	}
+
+.leaflet-control-editor-marker {
+	background-image: url(images/editor-marker.png);
+	margin-bottom: 5px;
+}
+
+.leaflet-control-editor-circle {
+	background-image: url(images/editor-circle.png);
+	margin-bottom: 5px;
+}
+
+.leaflet-control-editor-polyline {
+	background-image: url(images/editor-polyline.png);
+	margin-bottom: 5px;
+}
+
+.leaflet-control-editor-polygon {
+	background-image: url(images/editor-polygon.png);
+	margin-bottom: 0px;
+}

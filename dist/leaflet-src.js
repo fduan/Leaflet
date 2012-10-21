@@ -7633,6 +7633,418 @@ L.Map.include({
 });
 
 
+L.Editor = {};
+
+L.Editor.Base = L.Class.extend({
+	ns: 'editor',
+	type: 'base', // marker, circle, polygon, polyline, ... must be unique !!!
+	title: 'Editor',
+	
+	options: {},
+	includes: [L.Mixin.Events],
+	
+	_enabled: false,
+	_controller: null,
+	
+	initialize: function () {},
+	
+	enabled: function () {
+		return this._enabled;
+	},
+	
+/* Theses two following commented methods must be implemented in child editor buttons */
+	enable: function (map) {},
+	disable: function (map) {},
+	
+	_enable: function (e) {
+		if (! this._enabled) {
+			this._enabled = true;
+			this.enable.apply(this, [this._map]);
+			
+			L.DomUtil.addClass(this._link, 'active');
+			this.fire(this.ns + this.type + 'enable');
+		} else {
+			this._disable.apply(this, [e]);
+		}
+	},
+	
+	_disable: function (e) {
+		if (this._enabled) {
+			this.disable.apply(this, [this._map]);
+			this._enabled = false;
+			
+			L.DomUtil.removeClass(this._link, 'active');
+			this.fire(this.ns + this.type + 'disable');
+		}
+	},
+	
+	_onClick: function (e) {
+		if (! this._enabled && typeof (this._controller._editors) !== 'undefined') {
+			var type = null;
+			for (type in this._controller._editors) {
+				if (true) {
+					var editor = this._controller._editors[type];
+					editor._disable.apply(editor);
+				}
+			}
+		}
+		this._enable.apply(this, [e]);
+	}
+});
+
+
+
+L.Editor.Marker = L.Editor.Base.extend({
+	type: 'marker',
+	title: 'Marker',
+	
+	// Marker add methods
+	addmarker: function (e) {
+		var o = {};
+		L.Util.extend(o, this._controller.getLayerOptions('marker'));
+		e.target.addLayer(new L.Marker(e.latlng, o));
+	},
+	
+	enable: function (map) {
+		map.on('click', this.addmarker, this);
+	},
+	
+	disable: function (map) {
+		map.off('click', this.addmarker, this);
+	}
+});
+
+
+
+L.Editor.Circle = L.Editor.Base.extend({
+	type: 'circle',
+	title: 'Circle',
+	
+	// Marker add methods
+	addcircle: function (e) {
+		var map = e.target,
+			o = {};
+		L.Util.extend(o, this._controller.getLayerOptions('circle'));
+		
+		var circle = new L.Circle(e.latlng, 1, o);
+		this._map = map;
+		this._circle = circle;
+		
+		map.addLayer(circle);
+		
+		circle.on('click', this.validate, this);
+		map.on('mousemove', this.resize, this);
+	},
+	
+	resize: function (e) {
+		var	map = e.target,
+			center = this._circle.getLatLng();
+		this._circle.setRadius(e.latlng.distanceTo(center));
+	},
+	
+	validate: function (e) {
+		this._circle.off('click', this.validate, this);
+		this._map.off('mousemove', this.resize, this);
+	},
+	
+	enable: function (map) {
+		map.on('click', this.addcircle, this);
+	},
+	
+	disable: function (map) {
+		map.off('click', this.addcircle, this);
+	}
+});
+
+
+
+L.Editor.Polyline = L.Editor.Base.extend({
+	type: 'polyline',
+	title: 'Polyline',
+	
+	
+	add: function (e) {
+		var map = e.target,
+			o = {}, oh = {};
+		
+		L.Util.extend(o, this._controller.getLayerOptions('polyline'));
+		L.Util.extend(oh, this._controller.getLayerOptions('polyline_helper'));
+		
+		// First point
+		if (this._poly === null) {
+			var poly = new L.Polyline([e.latlng], o);
+			poly.editing.enable();
+			this._poly = poly;
+			
+			var hcoords = [e.latlng, e.latlng];
+			
+			// Helper
+			var helper = new L.Polyline(hcoords, oh);
+			helper.addTo(map);
+			this._helper = helper;
+			
+			map.addLayer(poly);
+			map.on('mousemove', this.helper, this);
+			map.on('contextmenu', this.validate, this);
+			helper.on('click', this.extend, this);
+		
+		} else {
+			this.extend.apply(this, [e]);
+		}
+	},
+	
+	extend: function (e) {
+		var	poly = this._poly,
+			helper = this._helper;
+		poly.addLatLng(e.latlng);
+		poly.editing.disable();
+		poly.editing.enable();
+		helper.spliceLatLngs(0, 1, e.latlng);
+	},
+	
+	helper: function (e) {
+		var map = e.target,
+			helper = this._helper;
+		if (helper) {
+			var latlngs = helper.getLatLngs();
+			helper.spliceLatLngs(1, 1, e.latlng);
+		}
+	},
+	
+	validate: function (e) {
+		var map = e.target,
+			poly = this._poly,
+			helper = this._helper;
+		
+		if (poly !== null) {
+			poly.editing.disable();
+			if (helper) {
+				map.removeLayer(helper);
+			} else if (poly.getLatLngs().length <= 1) {
+				map.removeLayer(poly);
+			}
+		}
+		
+		map.off('mousemove', this.helper, this);
+		map.off('contextmenu', this.validate, this);
+		helper.off('click', this.extend, this);
+		
+		this._poly = null;
+		this._helper = null;
+	},
+	
+	
+	enable: function (map) {
+		this._poly = null;
+		this._helper = null;
+		map.on('click', this.add, this);
+	},
+	
+	disable: function (map) {
+		map.off('click', this.add, this);
+	}
+});
+
+
+/*
+ * Forked from polyline
+ */
+
+L.Editor.Polygon = L.Editor.Base.extend({
+	type: 'polygon',
+	title: 'Polygon',
+	
+	add: function (e) {
+		var map = e.target,
+			o = {}, oh = {};
+		
+		L.Util.extend(o, this._controller.getLayerOptions('polygon'));
+		L.Util.extend(oh, this._controller.getLayerOptions('polygon_helper'));
+		
+		// First point
+		if (this._poly === null) {
+			var poly = new L.Polyline([e.latlng], o);
+			poly.editing.enable();
+			this._poly = poly;
+			
+			var hcoords = [e.latlng, e.latlng];
+			hcoords.push(poly.getLatLngs()[0]);
+			
+			// Helper
+			var helper = new L.Polyline(hcoords, oh);
+			helper.addTo(map);
+			this._helper = helper;
+			
+			map.addLayer(poly);
+			map.on('mousemove', this.helper, this);
+			map.on('contextmenu', this.validate, this);
+			helper.on('click', this.extend, this);
+		
+		} else {
+			this.extend.apply(this, [e]);
+		}
+	},
+	
+	extend: function (e) {
+		var	poly = this._poly,
+			helper = this._helper;
+		poly.addLatLng(e.latlng);
+		poly.editing.disable();
+		poly.editing.enable();
+		helper.spliceLatLngs(0, 1, e.latlng);
+	},
+	
+	helper: function (e) {
+		var map = e.target,
+			helper = this._helper;
+		if (helper) {
+			var latlngs = helper.getLatLngs();
+			helper.spliceLatLngs(1, 1, e.latlng);
+		}
+		this.off('click', this.extend, this);
+	},
+	
+	validate: function (e) {
+		var map = e.target,
+			poly = this._poly,
+			helper = this._helper;
+		
+		if (poly !== null) {
+			if (helper) {
+				map.removeLayer(helper);
+				
+				var polygon = new L.Polygon(poly.getLatLngs());
+				map.removeLayer(poly);
+				map.addLayer(polygon);
+				
+			} else if (poly.getLatLngs().length <= 1) {
+				map.removeLayer(poly);
+			}
+		}
+		
+		map.off('mousemove', this.helper, this);
+		map.off('contextmenu', this.validate, this);
+		helper.off('click', this.extend, this);
+		
+		this._poly = null;
+		this._helper = null;
+	},
+	
+	
+	enable: function (map) {
+		this._poly = null;
+		this._helper = null;
+		map.on('click', this.add, this);
+	},
+	
+	disable: function (map) {
+		map.off('click', this.add, this);
+	}
+});
+
+
+
+L.Editor.Rectangle = L.Editor.Polygon.extend({
+	type: 'rectangle',
+	title: 'Rectangle'
+});
+
+
+L.Control.Editor = L.Control.extend({
+	options: {
+		position: 'topleft',
+		editables: {
+			'marker': true,
+			'circle': true,
+			'polyline': true,
+			'polygon': true
+		}
+	},
+	
+	_layer_options: {
+		marker: {},
+		circle: {},
+		polyline: {},
+		polyline_helper: { dashArray: '10, 10'},
+		polygon: {},
+		polygon_helper: { dashArray: '10, 10'},
+		rectangle: {}
+	},
+	
+	includes: [L.Mixin.Events],
+	
+	_editors: {},
+	
+	onAdd: function (map) {
+		var	className = 'leaflet-control-editor',
+			container = L.DomUtil.create('div', className),
+			type = null;
+		
+		if (typeof(L.Editor.Marker) !== 'undefined') {
+			this.register.apply(this, [new L.Editor.Marker()]);
+		}
+		if (typeof(L.Editor.Circle) !== 'undefined') {
+			this.register.apply(this, [new L.Editor.Circle()]);
+		}
+		if (typeof(L.Editor.Polyline) !== 'undefined') {
+			this.register.apply(this, [new L.Editor.Polyline()]);
+		}
+		if (typeof(L.Editor.Polygon) !== 'undefined') {
+			this.register.apply(this, [new L.Editor.Polygon()]);
+		}
+				
+		for (type in this._editors) {
+			if (true) {
+				var	editor = this._editors[type];
+				editor._map = map;
+				editor._controller = this;
+				
+				var link = this._createButton.apply(this, [editor.title, className + '-' + editor.type, container, editor]);
+			}
+		}
+		
+		return container;
+	},
+	
+	_createButton: function (title, className, container, editor) {
+		var link = L.DomUtil.create('a', className, container);
+		link.href = '#';
+		link.title = title;
+		editor._link = link;
+		L.DomEvent
+			.on(link, 'click', L.DomEvent.stopPropagation)
+			.on(link, 'click', L.DomEvent.preventDefault)
+			.on(link, 'click', editor._onClick, editor)
+			.on(link, 'dblclick', L.DomEvent.stopPropagation);
+
+		return link;
+	},
+	
+	register: function (editor) {
+		if (typeof(this.options.editables[editor.type]) !== 'undefined' && this.options.editables[editor.type] === true) {
+			if (typeof(this._editors[editor.type]) === 'undefined') {
+				this._editors[editor.type] = editor;
+			}
+		}
+	},
+	
+	getLayerOptions: function (type) {
+		if (typeof(this._layer_options[type]) === 'undefined') {
+			return {};
+		} else {
+			return this._layer_options[type];
+		}
+	},
+	
+	setLayerOptions: function (type, options) {
+		if (typeof(this._layer_options[type]) !== 'undefined') {
+			this._layer_options[type] = options;
+		}
+	}
+	
+});
+
+
 
 
 }(this));

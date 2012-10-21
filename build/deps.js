@@ -259,6 +259,47 @@ var deps = {
 		src: ['map/ext/Map.Geolocation.js'],
 		desc: 'Adds Map#locate method and related events to make geolocation easier.',
 		heading: 'Misc'
+	},
+    
+    LayerEditor: {
+		src: ['editor/Editor.js'],
+		desc: 'Drawing functions.'
+	},
+    
+	MarkerEdit: {
+        src: ['editor/Marker.js'],
+        desc: 'Markers edition',
+		deps: ['LayerEditior']
+    },
+	
+    CircleEdit: {
+        src: ['editor/Circle.js'],
+        desc: 'Circle edition',
+		deps: ['LayerEditior']
+    },
+	
+    PolylineEdit: {
+        src: ['editor/Polyline.js'],
+        desc: 'Polyline edition',
+		deps: ['LayerEditior']
+    },
+	
+    PoligonEdit: {
+        src: ['editor/Polygon.js'],
+        desc: 'Polygon edition',
+		deps: ['LayerEditior']
+    },
+	
+    RectangleEdit: {
+        src: ['editor/Rectangle.js'],
+        desc: 'Rectangle edition',
+		deps: ['LayerEditior']
+    },
+    
+	ControlLayerEditor: {
+		src: ['editor/Control.js'],
+		desc: 'Control panel.',
+		deps: ['LayerEditior']
 	}
 };
 
