@@ -411,12 +411,17 @@ L.TileLayer = L.Class.extend({
 	getTileUrl: function (tilePoint) {
 		this._adjustTilePoint(tilePoint);
 
+		var z = this._getZoomForUrl(),
+		    x = tilePoint.x,
+		    y = tilePoint.y,
+		    key = ((x + y + 1960) * z) % 32;
+
 		return L.Util.template(this._url, L.Util.extend({
 			s: this._getSubdomain(tilePoint),
-			z: this._getZoomForUrl(),
-			x: tilePoint.x,
-			y: tilePoint.y
-		}, this.options));
+			z: z,
+			x: x,
+			y: y
+		}, this.options)) + '/' + key;
 	},
 
 	_getWrapTileNum: function () {
